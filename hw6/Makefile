@@ -54,3 +54,6 @@ calcServer.o : calcServer.c calc.h csapp.h
 
 clean :
 	rm -f *.o $(PROGRAMS) solution.zip
+
+test:
+	$(CC) test.c logger.c calc.c -o test $(CFLAGS)
