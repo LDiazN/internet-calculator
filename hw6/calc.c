@@ -250,7 +250,6 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
 
     if (first != '=' && headVariable >= 0) // If there is no operator but a variable
     {
-        LOG_WARN("%s", variablesStack[headVariable]);
         if (strcmp(calc->variables[getHash(variablesStack[headVariable])].key, variablesStack[headVariable]) != 0)
         {
             LOG_ERROR("Undefined variable error: The given variable does not exist in the calculator. \n");
