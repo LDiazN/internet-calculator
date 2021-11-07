@@ -137,7 +137,9 @@ void testInvalidExpr(TestObjs *objs) {
 	/* bad syntax */
 	ASSERT(0 == calc_eval(objs->calc, "4 +", &result));
 	/* undefined variable */
-	ASSERT(0 == calc_eval(objs->calc, "a", &result));
+	int x = calc_eval(objs->calc, "a", &result);
+	LOG_WARN("x is %d\n", x);
+	ASSERT(0 == x);
 	/* attempt to divide by 0 */
 	ASSERT(0 == calc_eval(objs->calc, "4 / 0", &result));
 }
