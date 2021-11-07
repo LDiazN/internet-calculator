@@ -3,6 +3,7 @@
 #include "tctest.h"
 
 #include "calc.h"
+#include "logger.h"
 
 typedef struct {
 	struct Calc *calc;
@@ -27,6 +28,7 @@ void testUpdate(TestObjs *objs);
 void testInvalidExpr(TestObjs *objs);
 
 int main(void) {
+	Logger * log = logger_get();
 	TEST_INIT();
 
 	TEST(testEvalLiteral);
@@ -37,6 +39,7 @@ int main(void) {
 	TEST(testInvalidExpr);
 
 	TEST_FINI();
+	logger_destroy(log);
 }
 
 void testEvalLiteral(TestObjs *objs) {

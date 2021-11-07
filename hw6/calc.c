@@ -3,8 +3,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include "logger.h"
+#include <assert.h>
 
 #define SIZE_OF_MAP 10
+
+#define SUCCESS 1 // Returned when everything went ok
+#define FAILURE 0 // Returned when something went wrong
 
 /// This struct contains a node of a dictionary that maps a string to an int.
 struct Map
@@ -47,15 +52,18 @@ int arithmethicOp(int n1, int n2, char op)
     case '/':
         return n1 / n2;
     }
+
+    assert(0 && "Undefined operator found in arithmethicOp");
+    return 0;
 }
 
 int getHash(char *key)
 {
-    int k = 0;
+    size_t k = 0;
 
-    for (int i = 0; i < strlen(key); i++)
+    for (size_t i = 0; i < strlen(key); i++)
     {
-        k = k + (int)key[i];
+        k = k + (size_t) key[i];
     }
     return (k % SIZE_OF_MAP);
 }
@@ -67,20 +75,21 @@ int getHash(char *key)
 
 struct Calc *calc_create()
 {
-    printf("\nCreating Calc Object\n\n");
+    LOG_INFO("Creating Calc Object\n\n");
     return (struct Calc *)malloc(sizeof(struct Calc));
 }
 
 ///     Destroy Calc object
 void calc_destroy(struct Calc *calc)
 {
-    printf("\nDestroying Calc Object\n\n");
-};
+    LOG_INFO("Destroying Calc Object\n\n");
+    free(calc);
+}
 
 ///     Given an expression, evaluates it on the calculator and return the result
 int calc_eval(struct Calc *calc, const char *expr, int *result)
 {
-    printf("\nEvaluating Expression in Calc Object\n\n");
+    LOG_INFO("Evaluating Expression in Calc Object\n\n");
 
     char operatorStack[20];
     int numberStack[25];
@@ -91,102 +100,105 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
     int headOp = -1;
     int headVariable = -1;
 
-    int i = 0;
+    size_t i = 0;
     while (expr[i] != '\0') // Iterate character by character until the expression ends
     {
 
-        if (expr[i] != ' ') // As long as the character is different from space
+        if (expr[i] == ' ') // As long as the character is different from space
         {
-            if (isalpha(expr[i]) != 0) // If it is a letter of the alphabet
-            {
-                char l[20] = "";
+            i++;
+            continue;
+        }
+    
+        if (isalpha(expr[i]) != 0) // If it is a letter of the alphabet
+        {
+            char l[20] = "";
 
-                while (i < strlen(expr) && isalpha(expr[i]) != 0) // Iterate character by character until the variable name is complete.
+            while (i < strlen(expr) && isalpha(expr[i]) != 0) // Iterate character by character until the variable name is complete.
+            {
+                strncat(l, &expr[i], 1);
+                i++;
+            }
+            if (strcmp(calc->variables[getHash(l)].key, l) != 0 && i < strlen(expr))
+            {
+                strcpy(calc->variables[getHash(l)].key, l); // store variable name in the calculator
+                headVariable++;
+                strcpy(variablesStack[headVariable], l);
+            }
+            else
+            {
+
+                if (headVariable < 0)
                 {
-                    strncat(l, &expr[i], 1);
-                    i++;
-                }
-                if (strcmp(calc->variables[getHash(l)].key, l) != 0 && i < strlen(expr))
-                {
-                    strcpy(calc->variables[getHash(l)].key, l); // store variable name in the calculator
                     headVariable++;
                     strcpy(variablesStack[headVariable], l);
                 }
                 else
                 {
-
-                    if (headVariable < 0)
-                    {
-                        headVariable++;
-                        strcpy(variablesStack[headVariable], l);
-                    }
-                    else
-                    {
-                        head++;
-                        numberStack[head] = calc->variables[getHash(l)].value;
-                    }
+                    head++;
+                    numberStack[head] = calc->variables[getHash(l)].value;
                 }
-
-                i--;
             }
-            else if (expr[i] >= '0' && expr[i] <= '9') // If it is a number of the alphabet
-            {                                          // If it is a number
 
-                int n = 0;
-
-                while (i < strlen(expr) && expr[i] >= '0' && expr[i] <= '9') // Iterate digit by digit until the number is complete.
-                {
-                    n = (n * 10) + (expr[i] - '0');
-                    i++;
-                }
-                numberStack[++head] = n; // store variable name in a stack of numbers
-                i--;
-            }
-            else
-            {
-
-                while (headOp >= 0 && precedence(operatorStack[headOp], expr[i])) // If there is an operator and its precedence is bigger that the one of the current character in the expression.
-                {
-                    if (operatorStack[headOp - 1] != '=') // If there are no variables in the operation, performs arithmethic operation.
-                    {
-
-                        if ((head < 0 && headVariable < 0) || (head == 0 && headVariable < 0) || (head < 0 && headVariable == 0))
-                        {
-                            printf("Arity error: there is a binary arity operator. An argument is missing.\n");
-                            return EXIT_FAILURE;
-                        }
-
-                        int n2 = numberStack[head--];
-                        int n1 = numberStack[head--];
-                        first = operatorStack[headOp--];
-
-                        if (n2 == 0 && first == '/')
-                        {
-                            printf("Arithmetic error: Cannot divide by zero.\n");
-                            return EXIT_FAILURE;
-                        }
-
-                        numberStack[head++] = arithmethicOp(n1, n2, first);
-                    }
-                    else
-                    {
-                        headOp--;
-                        int n1;
-                        if (headVariable == 0) // If a value is assigned to a variable directly
-                        {
-                            n1 = numberStack[head];
-                        }
-                        else //If a value is assigned to a variable by means of another variable stored in the calculator
-                        {
-                            n1 = calc->variables[getHash(variablesStack[headVariable])].value;
-                            numberStack[head++] = n1;
-                        }
-                        calc->variables[getHash(variablesStack[headVariable - 2])].value = n1;
-                    }
-                }
-                operatorStack[++headOp] = expr[i];
-            }
+            i--;
         }
+        else if (expr[i] >= '0' && expr[i] <= '9') // If it is a number of the alphabet
+        {                                          // If it is a number
+
+            int n = 0;
+
+            while (i < strlen(expr) && expr[i] >= '0' && expr[i] <= '9') // Iterate digit by digit until the number is complete.
+            {
+                n = (n * 10) + (expr[i] - '0');
+                i++;
+            }
+            numberStack[++head] = n; // store variable name in a stack of numbers
+            i--;
+        }
+        else
+        {
+            while (headOp >= 0 && precedence(operatorStack[headOp], expr[i])) // If there is an operator and its precedence is bigger that the one of the current character in the expression.
+            {
+                if (operatorStack[headOp - 1] != '=') // If there are no variables in the operation, performs arithmethic operation.
+                {
+
+                    if ((head < 0 && headVariable < 0) || (head == 0 && headVariable < 0) || (head < 0 && headVariable == 0))
+                    {
+                        LOG_ERROR("Arity error: there is a binary arity operator. An argument is missing.\n");
+                        return FAILURE;
+                    }
+
+                    int n2 = numberStack[head--];
+                    int n1 = numberStack[head--];
+                    first = operatorStack[headOp--];
+
+                    if (n2 == 0 && first == '/')
+                    {
+                        LOG_ERROR("Arithmetic error: Cannot divide by zero.\n");
+                        return FAILURE;
+                    }
+
+                    numberStack[head++] = arithmethicOp(n1, n2, first);
+                }
+                else
+                {
+                    headOp--;
+                    int n1;
+                    if (headVariable == 0) // If a value is assigned to a variable directly
+                    {
+                        n1 = numberStack[head];
+                    }
+                    else //If a value is assigned to a variable by means of another variable stored in the calculator
+                    {
+                        n1 = calc->variables[getHash(variablesStack[headVariable])].value;
+                        numberStack[head++] = n1;
+                    }
+                    calc->variables[getHash(variablesStack[headVariable - 2])].value = n1;
+                }
+            }
+            operatorStack[++headOp] = expr[i];
+        }
+    
 
         i++;
     }
@@ -197,8 +209,8 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
         {
             if ((head < 0 && headVariable < 0) || (head == 0 && headVariable < 0) || (head < 0 && headVariable == 0))
             {
-                printf("Arity error: there is a binary arity operator. An argument is missing.\n");
-                return EXIT_FAILURE;
+                LOG_ERROR("Arity error: there is a binary arity operator. An argument is missing.\n");
+                return FAILURE;
             }
 
             int n2 = numberStack[head--];
@@ -207,14 +219,14 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
 
             if (n2 == 0 && first == '/')
             {
-                printf("Arithmetic error: Cannot divide by zero.\n");
-                return EXIT_FAILURE;
+                LOG_ERROR("Arithmetic error: Cannot divide by zero.\n");
+                return FAILURE;
             }
 
             if (n2 == 0 && first == '/')
             {
-                printf("Arithmetic error: Cannot divide by zero.\n");
-                return EXIT_FAILURE;
+                LOG_ERROR("Arithmetic error: Cannot divide by zero.\n");
+                return FAILURE;
             }
 
             numberStack[++head] = arithmethicOp(n1, n2, first);
@@ -238,16 +250,17 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
 
     if (first != '=' && headVariable >= 0) // If there is no operator but a variable
     {
+        LOG_WARN("%s", variablesStack[headVariable]);
         if (strcmp(calc->variables[getHash(variablesStack[headVariable])].key, variablesStack[headVariable]) != 0)
         {
-            printf("Undefined variable error: The given variable does not exist in the calculator. \n");
-            return EXIT_FAILURE;
+            LOG_ERROR("Undefined variable error: The given variable does not exist in the calculator. \n");
+            return FAILURE;
         }
 
         *result = calc->variables[getHash(variablesStack[headVariable])].value;
-        return *result;
+        return SUCCESS;
     }
 
     *result = numberStack[head];
-    return numberStack[head];
+    return SUCCESS;
 }

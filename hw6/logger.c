@@ -86,9 +86,9 @@ void logger_trace(const char * msg)
 // Create a new color string
 char * _logger_create_color_str(const char *msg, const char * ansi_color)
 {
-    int new_size = strlen(msg) + 20;
-    char * new_msg = malloc(sizeof(char) * new_size);
-
+    size_t new_size = strlen(msg) + 100;
+    char * new_msg = (char *) malloc( (size_t) sizeof(char) * new_size);
+    
     // Get time to print in format
     time_t rawtime;
     struct tm info;
