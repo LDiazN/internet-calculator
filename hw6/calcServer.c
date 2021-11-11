@@ -97,6 +97,7 @@ void server_start(struct Server * server, size_t port)
 	server->running = TRUE;
 }
 
+// Shut down server
 void server_shutdown(struct Server * server)
 {
 	LOG_INFO("Shutting down server...");

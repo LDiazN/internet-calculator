@@ -30,17 +30,19 @@ calcTest : logger.o calcTest.o calc.o tctest.o
 calcInteractive : calcInteractive.o calc.o csapp.o
 	$(CC) -o $@ calcInteractive.o calc.o csapp.o -lpthread
 
-calcServer : calcServer.o calc.o csapp.o
-	$(CC) -o $@ calcServer.o calc.o csapp.o -lpthread
+calcServer : logger.o calcServer.o calc.o csapp.o 
+	$(CC) -o $@ calcServer.o calc.o csapp.o logger.o -lpthread
 
 # Targets for .o files with correct dependencies.
 # Note that no commands are needed because of the pattern rules above.
 
 # This one is appropriate if you used C++ for the calculator implementation
-calc.o : calc.c calc.h
+#calc.o : calc.cpp calc.h
 
 # This one is appropriate if you used C for the calculator implementation
-#calc.o : calc.c calc.h
+calc.o : calc.c calc.h
+
+logger.o : logger.c logger.h
 
 calcTest.o : calcTest.c tctest.h
 
