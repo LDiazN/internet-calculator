@@ -7,6 +7,7 @@
 #include "logger.h"
 #include <assert.h>
 #include <string.h>
+#include <signal.h>
 
 #define TRUE 1
 #define FALSE 0
@@ -37,9 +38,22 @@ void server_shutdown(struct Server * server);
 ///		0 if not running, anything else otherwhise
 int server_running(struct Server * server);
 
+/// Summary:
+/// 	Handle interruption signal (SIGINT), so we can safely destroy the server on interruption
+/// Parameters:
+/// 	signum = Signal number to handle
+void sigint_handler(int signum);
+
+// Server object for our application
+struct Server server = {.calc=NULL, .port = 0, .running = 0};
+
+
 int main(int argc, char **argv) {
 	// Initialize logging
 	Logger * logger = logger_get();	
+
+	// Set up interruption signal:
+	signal(SIGINT, sigint_handler);
 
 	// Check arguments
 	if (argc <2)
@@ -60,13 +74,10 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	// Server object for our application
-	struct Server server = {.calc=NULL, .port = 0, .running = 0};
-
 	// Start the server
 	server_start(&server, port);
 
-	while (!server_running(&server))
+	while (server_running(&server))
 	{
 
 	}
@@ -83,7 +94,7 @@ int main(int argc, char **argv) {
 // -- < Implementation > -----------------------------------------
 
 // Tells if the server is running
-int server_running(struct Server *server)
+int server_running(struct Server * server)
 {
 	return server->running;
 }
@@ -91,7 +102,7 @@ int server_running(struct Server *server)
 // Initializes server 
 void server_start(struct Server * server, size_t port)
 {
-	LOG_INFO("Starting server, listenning to port: %lu", port);
+	LOG_INFO("Starting server, listenning to port: %lu\n", port);
 	server->calc = calc_create();
 	server->port = port;
 	server->running = TRUE;
@@ -100,8 +111,23 @@ void server_start(struct Server * server, size_t port)
 // Shut down server
 void server_shutdown(struct Server * server)
 {
-	LOG_INFO("Shutting down server...");
+	LOG_INFO("Shutting down server...\n");
 	calc_destroy(server->calc);
 	server->calc = NULL;
+	server->running = FALSE;
+
+	LOG_INFO("Server shutdown succesful\n");
 }
 
+void sigint_handler(int signum)
+{
+	// Sanity check
+	assert(signum == SIGINT && "Invalid signal for sigint handler");
+
+	// Server shutdown
+	server_shutdown(&server);
+
+	// Call default signal on shutdown finished
+	signal(SIGINT, SIG_DFL);
+	raise(SIGINT);
+}
