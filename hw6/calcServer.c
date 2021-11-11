@@ -17,12 +17,24 @@
 // max size to read from input
 #define LINEBUFF_SIZE 1024
 
+// Server constraints
+#define PORT_MIN 1024
+#define PORT_MAX 65535
+#define SERVER_ADDR INADDR_LOOPBACK // Listen to localhost
+// #define SERVER_ADDR INADDR_ANY   // Listen anything
+#define MAX_CONNECTION_QUEUE_SIZE 100
+
+
 /// Server persistent data
 struct Server
 {
-	struct Calc *calc; // calc object with stored persistent data
-	size_t port;	   // port to listen to 
-	bool running;   // If the server should stope
+	struct Calc *calc; 		// calc object with stored persistent data
+	uint32_t 	port;	    // port to listen to 
+	bool  		running;    // If the server should stope
+	int 		socket_fd;  // File descriptor for the server socket
+	struct sockaddr_in address; // Address object
+	int address_len;		// Size in bytes of the address object
+	int opt;				// ???
 };
 
 /// Summary:
@@ -59,7 +71,7 @@ void sigint_handler(int signum);
 void chat_with_client(struct Server * server, int infd, int outfd);
 
 // Server object for our application
-struct Server server = {.calc=NULL, .port = 0, .running = 0};
+struct Server server = {.calc=NULL, .port = 0, .running = 0, .socket_fd = 0};
 
 // Logger object
 Logger * logger = NULL;
@@ -85,18 +97,36 @@ int main(int argc, char **argv) {
 	size_t port = 0;
 	sscanf(argv[1], "%lu", &port);
 
-	if (port < 1024)
+	// Error checking
+	if (port < PORT_MIN) // Check port lower bound
 	{
 		LOG_ERROR("Invalid port. The given port is reserved for admin privileges. Choose a port greater or equal to 1024\n")
 		return 1;
+	}
+	else if (port > PORT_MAX) // Check port upper bound
+	{
+		LOG_ERROR("Invalid port. The given port number is greater than the max port number: %d\n", PORT_MAX);
 	}
 
 	// Start the server
 	server_start(&server, port);
 
+
+	// TEMPORARY
+	char peer_msg_buffer[LINEBUFF_SIZE];	// to store read message
+	struct sockaddr_in peer_addr;		// to store peer address
+	memset(&peer_addr, 0, sizeof(peer_addr));	// set to zeros just in case
+	int peer_addr_size = sizeof(peer_addr);		// Peer address size
+
 	while (server_running(&server))
 	{
+		// Listen for a connection 
+		LOG_TRACE("Waiting for new connections zzz....\n");
+		int new_socket = Accept(server.socket_fd, (struct sockaddr *) &peer_addr, (socklen_t *) &peer_addr_size);
+		LOG_TRACE("Not more waiting!\n");
 
+		Read(new_socket, peer_msg_buffer, LINEBUFF_SIZE);
+		LOG_WARN("%s\n", peer_msg_buffer);
 	}
 
 	// Shut down server object
@@ -121,6 +151,31 @@ void server_start(struct Server * server, size_t port)
 	server->calc = calc_create();
 	server->port = port;
 	server->running = TRUE;
+
+	// Create socket:
+	// 	- AF_INET to tell the socket to communicate using ipv4 communication domain
+	//	- SOCK_STREAM to tell it to communicate using tcp connections
+	//	- 0 for internet protocol (IP)
+	server->socket_fd = Socket(AF_INET, SOCK_STREAM, 0);
+
+	// TODO Capaz debería usar setsocketopt aquí en caso de que tenga problemas con lo de reuse addres y port
+	if (setsockopt(server->socket_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
+                                                  &server->opt, sizeof(server->opt)))
+    {
+        LOG_ERROR("Error setting up socket options");
+        exit(EXIT_FAILURE);
+    }
+
+	server->address.sin_family = AF_INET;
+	server->address.sin_addr.s_addr = INADDR_ANY;
+	server->address.sin_port = htonl(server->port);
+	server->address_len = sizeof(server->address);
+
+	// Bind the socket to the corresponding direction and port (localhost and stored port)
+	Bind(server->socket_fd, (struct sockaddr *) &server->address, sizeof(server->address));
+
+	// Start to listen 
+	Listen(server->socket_fd, MAX_CONNECTION_QUEUE_SIZE);
 }
 
 // Shut down server
@@ -138,6 +193,7 @@ void server_shutdown(struct Server * server)
 	logger_destroy(logger);
 }
 
+// To be called when an interruption signal is called
 void sigint_handler(int signum)
 {
 	// Sanity check
