@@ -70,6 +70,13 @@ void sigint_handler(int signum);
 ///		outfd  = file descriptor for the file where to write the output
 void chat_with_client(struct Server * server, int infd, int outfd);
 
+/// Summary:
+/// 	issue a server shutdown
+/// Parameters:
+///		server = server to shutdown
+
+void server_shutdown_start(struct Server * server);
+
 // Server object for our application
 struct Server server = {.calc=NULL, .port = 0, .running = 0, .socket_fd = 0};
 
@@ -111,45 +118,27 @@ int main(int argc, char **argv) {
 	// Start the server
 	server_start(&server, port);
 
-
-	// TEMPORARY
-	char peer_msg_buffer[LINEBUFF_SIZE];	// to store read message
-	struct sockaddr_in peer_addr;		// to store peer address
-	memset(&peer_addr, 0, sizeof(peer_addr));	// set to zeros just in case
-	int peer_addr_size = sizeof(peer_addr);		// Peer address size
-
 	while (server_running(&server))
 	{
 		// Listen for a connection 
-		LOG_TRACE("Waiting for new connections zzz....\n");
-		int peer_socket = Accept(server.socket_fd, NULL, NULL);
-		LOG_TRACE("Not more waiting!\n");
+		LOG_TRACE("Waiting for new connections\n");
+		int peer_socket = Accept(server.socket_fd, NULL, NULL); // will halt here waiting for requests
+		LOG_TRACE("New connection established!\n");
 
-		Read(peer_socket, peer_msg_buffer, LINEBUFF_SIZE);
+		// Start an interactive session
+		chat_with_client(&server, peer_socket, peer_socket);
 
-		char msg[14] = "got you buddy";
-
-		// Try to respond message
-		int result;
-		if ((result = send(peer_socket, msg, sizeof(msg), 0)) == -1)
-		{
-			LOG_ERROR("Could not send message to peer :(\n")
-		}
-		else if (result < 0)
-		{
-			assert(FALSE && "Unrecognized error code for send function");
-		}
-		else 
-		{
-			LOG_INFO("Sending %d bytes of message to peer\n", result);
-		}
-
-		LOG_WARN("%s\n", peer_msg_buffer);
+		// close peer socket 
+		close(peer_socket);
+		LOG_INFO("Closing connection with peer\n");
 	}
 
 	// Shut down server object
 	server_shutdown(&server);
 	
+	// Destroy logger
+	logger_destroy(logger);
+
 	return 0;
 }
 
@@ -193,9 +182,12 @@ void server_shutdown(struct Server * server)
 	Close(server->socket_fd); 
 
 	LOG_INFO("Server shutdown succesful\n");
+}
 
-	// Destroy logger
-	logger_destroy(logger);
+// Trigger server shutdown
+void server_shutdown_start(struct Server * server)
+{
+	server->running = FALSE;
 }
 
 // To be called when an interruption signal is called
@@ -229,6 +221,7 @@ void chat_with_client(struct Server *server, int infd, int outfd) {
 	bool done = FALSE;
 	while (!done) {
 		ssize_t n = rio_readlineb(&in, linebuf, LINEBUFF_SIZE);
+		LOG_TRACE("peer said %s\n", linebuf);
 		if (n <= 0) {
 			/* error or end of input */
 			done = TRUE;
@@ -236,9 +229,15 @@ void chat_with_client(struct Server *server, int infd, int outfd) {
 			/* quit command */
 			done = TRUE;
 		} else if (strcmp(linebuf, "shutdown\n") == 0 || strcmp(linebuf, "shutdown\r\n") == 0) {
+
+			// Stop interactive session 
 			done = TRUE;
-			// Will stop the main loop
-			server_shutdown(server);
+
+			// Write a farewell message
+			rio_writen(outfd, "Shutting down server, have a nice day :)\n", 42);
+
+			// Issue a server shutdown
+			server_shutdown_start(server);
 
 		} else {
 			/* process input line */
