@@ -1,4 +1,3 @@
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -61,7 +60,7 @@ int getHash(char *key)
 
     for (size_t i = 0; i < strlen(key); i++)
     {
-        k = k + (size_t) key[i];
+        k = k + (size_t)key[i];
     }
     return (k % SIZE_OF_MAP);
 }
@@ -102,12 +101,12 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
     while (expr[i] != '\0') // Iterate character by character until the expression ends
     {
 
-        if (expr[i] == ' ') // As long as the character is different from space
+        if (isspace(expr[i]) != 0) // As long as the character is different from space
         {
             i++;
             continue;
         }
-    
+
         if (isalpha(expr[i]) != 0) // If it is a letter of the alphabet
         {
             char l[20] = "";
@@ -117,6 +116,13 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
                 strncat(l, &expr[i], 1);
                 i++;
             }
+
+            if (strlen(expr) - i == 2 && strcmp(calc->variables[getHash(l)].key, l) != 0) // If there is no operator but a variable
+            {
+                LOG_ERROR("Undefined variable error: The given variable does not exist in the calculator. \n");
+                return FAILURE;
+            }
+
             if (strcmp(calc->variables[getHash(l)].key, l) != 0 && i < strlen(expr))
             {
                 strcpy(calc->variables[getHash(l)].key, l); // store variable name in the calculator
@@ -160,7 +166,7 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
                 if (operatorStack[headOp - 1] != '=') // If there are no variables in the operation, performs arithmethic operation.
                 {
 
-                    if ((head < 0 && headVariable < 0) || (head == 0 && headVariable < 0) || (head < 0 && headVariable == 0))
+                    if ((head < 0 && headVariable < 0) || (head == headOp && headVariable < 0 && headOp >= 0) || (head < 0 && headVariable == headOp && headOp >= 0))
                     {
                         LOG_ERROR("Arity error: there is a binary arity operator. An argument is missing.\n");
                         return FAILURE;
@@ -196,7 +202,6 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
             }
             operatorStack[++headOp] = expr[i];
         }
-    
 
         i++;
     }
@@ -205,7 +210,7 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
     {
         if (operatorStack[headOp] != '=')
         {
-            if ((head < 0 && headVariable < 0) || (head == 0 && headVariable < 0) || (head < 0 && headVariable == 0))
+            if ((head < 0 && headVariable < 0) || (head == headOp && headVariable < 0 && headOp >= 0) || (head < 0 && headVariable == headOp && headOp >= 0))
             {
                 LOG_ERROR("Arity error: there is a binary arity operator. An argument is missing.\n");
                 return FAILURE;
@@ -234,7 +239,7 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
             headOp--;
             int n1;
             if (headVariable == 0) // If a value is assigned to a variable directly
-            {   
+            {
                 n1 = numberStack[head];
             }
             else //If a value is assigned to a variable by means of another variable stored in the calculator
