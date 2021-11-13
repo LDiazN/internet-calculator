@@ -35,7 +35,8 @@ struct Server
 	struct sockaddr_in address; // Address object
 	int address_len;		// Size in bytes of the address object
 	int opt;				// ???
-	pthread_t main_thread_id;
+	pthread_t main_thread_id; // Main thread id for signals
+	pthread_mutex_t mutex; 	// Mutex required to ensure thread safety
 };
 
 /// Arguments to pass to the session thread when creating it
@@ -91,13 +92,12 @@ Logger * logger = NULL;
 
 pthread_t threads[MAX_SIMULT_SESSIONS];
 
-void sigalarm_handler(int signum)
-{
-	assert(signum == SIGALRM && "This handler function only supports SIGALARMS functions");
-
-	if (!server_running(&server))
-		LOG_INFO("Shut down signal triggered\n");
-}
+/// Summary:
+///		Use this signal handler to wake up the server in case it is halting in "accept"
+///		when a shutdown is triggered
+///	Paraemters:
+///		Signal code, should be SIGALARM only 
+void sigalarm_handler(int signum);
 
 int main(int argc, char **argv) {
 
@@ -195,6 +195,13 @@ void server_start(struct Server * server, size_t port)
 	server->port = port;
 	server->running = TRUE;
 	server->main_thread_id = pthread_self();
+	
+	// init mutex
+	if (pthread_mutex_init(&server->mutex, NULL) != 0)
+	{
+		LOG_ERROR("Mutex initialization failed\n");
+		exit(1);
+	}
 
 	char port_str[6];
 
@@ -217,6 +224,9 @@ void server_shutdown(struct Server * server)
 	server->calc = NULL;
 	server->running = FALSE;
 	Close(server->socket_fd); 
+
+	// Destroy mutex
+	pthread_mutex_destroy(&server->mutex);
 
 	LOG_INFO("Server shutdown succesful\n");
 }
@@ -242,6 +252,15 @@ void sigint_handler(int signum)
 	// Call default signal on shutdown finished
 	signal(SIGINT, SIG_DFL);
 	raise(SIGINT);
+}
+
+// To be called when a shutdown is issued and you want to wake up the server while it's halting on accept
+void sigalarm_handler(int signum)
+{
+	assert(signum == SIGALRM && "This handler function only supports SIGALARMS functions");
+
+	if (!server_running(&server))
+		LOG_INFO("Shut down signal triggered\n");
 }
 
 void *chat_with_client(void *args) {
@@ -287,7 +306,7 @@ void *chat_with_client(void *args) {
 		} else {
 			/* process input line */
 			int result;
-			if (calc_eval(server->calc, linebuf, &result) == 0) {
+			if (calc_eval(server->calc, linebuf, &result) == FAILURE) {
 				/* expression couldn't be evaluated */
 				rio_writen(outfd, "Error\n", 6);
 			} else {
@@ -305,3 +324,14 @@ void *chat_with_client(void *args) {
 	return NULL;
 }
 
+/// Thread safe eval
+int server_calc_eval(struct Server * server, const char *expr, int *result)
+{
+	pthread_mutex_lock(&server->mutex);
+
+	int res = calc_eval(server->calc, expr, result);
+
+	pthread_mutex_unlock(&server->mutex);
+
+	return res;
+}
