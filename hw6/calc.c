@@ -5,11 +5,9 @@
 #include <ctype.h>
 #include "logger.h"
 #include <assert.h>
+#include "calc.h"
 
 #define SIZE_OF_MAP 10
-
-#define SUCCESS 1 // Returned when everything went ok
-#define FAILURE 0 // Returned when something went wrong
 
 /// This struct contains a node of a dictionary that maps a string to an int.
 struct Map

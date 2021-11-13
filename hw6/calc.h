@@ -1,6 +1,9 @@
 #ifndef CALC_H
 #define CALC_H
 
+#define SUCCESS 1 // Returned when everything went ok
+#define FAILURE 0 // Returned when something went wrong
+
 /*
  * Note: you should NOT need to modify anything in this header file.
  */
