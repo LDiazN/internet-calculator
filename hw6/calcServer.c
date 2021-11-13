@@ -23,7 +23,7 @@
 #define SERVER_ADDR INADDR_LOOPBACK // Listen to localhost
 // #define SERVER_ADDR INADDR_ANY   // Listen anything
 #define MAX_CONNECTION_QUEUE_SIZE 100
-
+#define MAX_SIMULT_SESSIONS 10 		// Max amount of simultaneous sessions
 
 /// Server persistent data
 struct Server
@@ -35,6 +35,14 @@ struct Server
 	struct sockaddr_in address; // Address object
 	int address_len;		// Size in bytes of the address object
 	int opt;				// ???
+	pthread_t main_thread_id;
+};
+
+/// Arguments to pass to the session thread when creating it
+struct SessionArgs
+{
+	int peer_socket_fd;
+	struct Server * server;
 };
 
 /// Summary:
@@ -65,10 +73,8 @@ void sigint_handler(int signum);
 ///		Main function to interact with the client in an interactive http session using the given server state, 
 ///		reading input from the provided file descriptor, and writing output to the provided file descriptor
 ///	Parameters
-///		server = current server state
-///		infd   = file descriptor for the file where to read the input
-///		outfd  = file descriptor for the file where to write the output
-void chat_with_client(struct Server * server, int infd, int outfd);
+///		args = argument struct to pass when creating the thread
+void *chat_with_client(void * args);
 
 /// Summary:
 /// 	issue a server shutdown
@@ -78,10 +84,20 @@ void chat_with_client(struct Server * server, int infd, int outfd);
 void server_shutdown_start(struct Server * server);
 
 // Server object for our application
-struct Server server = {.calc=NULL, .port = 0, .running = 0, .socket_fd = 0};
+struct Server server;
 
 // Logger object
 Logger * logger = NULL;
+
+pthread_t threads[MAX_SIMULT_SESSIONS];
+
+void sigalarm_handler(int signum)
+{
+	assert(signum == SIGALRM && "This handler function only supports SIGALARMS functions");
+
+	if (!server_running(&server))
+		LOG_INFO("Shut down signal triggered\n");
+}
 
 int main(int argc, char **argv) {
 
@@ -90,6 +106,16 @@ int main(int argc, char **argv) {
 
 	// Set up interruption signal:
 	signal(SIGINT, sigint_handler);
+
+	// Set sig alarm handler
+	struct sigaction sig_act;
+	sigemptyset(&sig_act.sa_mask);
+	sig_act.sa_flags = 0;
+	sig_act.sa_handler = sigalarm_handler;
+	sigaction(SIGALRM, &sig_act, NULL);
+
+	// Reset threads to 0
+	memset(threads, 0, sizeof(threads));
 
 	// Check arguments
 	if (argc <2)
@@ -122,15 +148,25 @@ int main(int argc, char **argv) {
 	{
 		// Listen for a connection 
 		LOG_TRACE("Waiting for new connections\n");
-		int peer_socket = Accept(server.socket_fd, NULL, NULL); // will halt here waiting for requests
+		int peer_socket = accept(server.socket_fd, NULL, NULL); // will halt here waiting for requests
+		if (peer_socket < 0 && errno == EINTR) // an alarm was set to trigger a shutdown
+		{
+			LOG_INFO("Shutdown signal received!\n")
+			continue; 
+		}
+		else if (peer_socket < 0)
+		{
+			LOG_ERROR("Error ocurred accepting connections from peers, error code: %d\n", peer_socket);
+			continue; 
+		}
+
 		LOG_TRACE("New connection established!\n");
 
+		
 		// Start an interactive session
-		chat_with_client(&server, peer_socket, peer_socket);
-
-		// close peer socket 
-		close(peer_socket);
-		LOG_INFO("Closing connection with peer\n");
+		struct SessionArgs args = {.peer_socket_fd = peer_socket, .server = &server};
+		pthread_t next_thread_id;
+		Pthread_create(&next_thread_id, NULL, chat_with_client, (void *) &args);
 	}
 
 	// Shut down server object
@@ -158,6 +194,7 @@ void server_start(struct Server * server, size_t port)
 	server->calc = calc_create();
 	server->port = port;
 	server->running = TRUE;
+	server->main_thread_id = pthread_self();
 
 	char port_str[6];
 
@@ -184,10 +221,11 @@ void server_shutdown(struct Server * server)
 	LOG_INFO("Server shutdown succesful\n");
 }
 
-// Trigger server shutdown
+// Trigger a server shutdown
 void server_shutdown_start(struct Server * server)
 {
 	server->running = FALSE;
+	pthread_kill(server->main_thread_id, SIGALRM);
 }
 
 // To be called when an interruption signal is called
@@ -206,9 +244,16 @@ void sigint_handler(int signum)
 	raise(SIGINT);
 }
 
-void chat_with_client(struct Server *server, int infd, int outfd) {
+void *chat_with_client(void *args) {
+	struct SessionArgs * session_args = (struct SessionArgs *) args;
 	rio_t in;
 	char linebuf[LINEBUFF_SIZE];
+
+	int infd; // where to read from
+	int outfd;// where to write to
+
+	infd = outfd = session_args->peer_socket_fd;
+	struct Server * server = session_args->server;
 
 	/* wrap standard input (which is file descriptor 0) */
 	rio_readinitb(&in, infd);
@@ -254,5 +299,9 @@ void chat_with_client(struct Server *server, int infd, int outfd) {
 			}
 		}
 	}
+
+	// Close connection with peer
+	close(session_args->peer_socket_fd);
+	return NULL;
 }
 
