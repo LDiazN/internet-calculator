@@ -32,7 +32,6 @@ struct Server
 	uint32_t 	port;	    	// port to listen to 
 	bool  		running;    	// If the server should stope
 	int 		socket_fd;  	// File descriptor for the server socket
-	struct sockaddr_in address; 			// Address object
 	pthread_t main_thread_id; 				// Main thread id for signals
 	pthread_mutex_t calc_mutex; 			// Mutex required to ensure thread safety with calculator operations
 	pthread_mutex_t thread_pool_mutex; 		// Mutex required to ensure thread safety with thread pool
