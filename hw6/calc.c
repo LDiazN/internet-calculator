@@ -28,7 +28,6 @@ int precedence(char o1, char o2)
 {
     if (((o1 == '+') || (o1 == '-')) && ((o2 == '*') || (o2 == '/')))
         return 0;
-
     else if (o1 == '=' && ((o2 == '+') || (o2 == '-') || (o2 == '*') || (o2 == '/')))
         return 0;
     else
@@ -109,6 +108,7 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
 
         if (isalpha(expr[i]) != 0) // If it is a letter of the alphabet
         {
+
             char l[20] = "";
 
             while (i < strlen(expr) && isalpha(expr[i]) != 0) // Iterate character by character until the variable name is complete.
@@ -136,6 +136,8 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
                 {
                     headVariable++;
                     strcpy(variablesStack[headVariable], l);
+                    head++;
+                    numberStack[head] = calc->variables[getHash(l)].value;
                 }
                 else
                 {
@@ -146,9 +148,8 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
 
             i--;
         }
-        else if (expr[i] >= '0' && expr[i] <= '9') // If it is a number of the alphabet
-        {                                          // If it is a number
-
+        else if (expr[i] >= '0' && expr[i] <= '9') // If it is a number
+        {
             int n = 0;
 
             while (i < strlen(expr) && expr[i] >= '0' && expr[i] <= '9') // Iterate digit by digit until the number is complete.
@@ -161,9 +162,16 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
         }
         else
         {
+            if (headOp >= 0 && expr[i] == '=') // If there is no operator but a variable
+            {
+                LOG_ERROR("Assignation error: cannot assign value to an operation \n");
+                return FAILURE;
+            }
+
             while (headOp >= 0 && precedence(operatorStack[headOp], expr[i])) // If there is an operator and its precedence is bigger that the one of the current character in the expression.
             {
-                if (operatorStack[headOp - 1] != '=') // If there are no variables in the operation, performs arithmethic operation.
+
+                if (operatorStack[headOp] != '=') // If there are no variables in the operation, performs arithmethic operation.
                 {
 
                     if ((head < 0 && headVariable < 0) || (head == headOp && headVariable < 0 && headOp >= 0) || (head < 0 && headVariable == headOp && headOp >= 0))
@@ -181,8 +189,8 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
                         LOG_ERROR("Arithmetic error: Cannot divide by zero.\n");
                         return FAILURE;
                     }
-
-                    numberStack[head++] = arithmethicOp(n1, n2, first);
+                    head++;
+                    numberStack[head] = arithmethicOp(n1, n2, first);
                 }
                 else
                 {
@@ -251,7 +259,7 @@ int calc_eval(struct Calc *calc, const char *expr, int *result)
         }
     }
 
-    if (first != '=' && headVariable >= 0) // If there is no operator but a variable
+    if (first != '=' && headVariable >= 0 && head < 0) // If there is no operator but a variable
     {
         if (strcmp(calc->variables[getHash(variablesStack[headVariable])].key, variablesStack[headVariable]) != 0)
         {
