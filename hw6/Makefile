@@ -5,7 +5,7 @@
 
 PROGRAMS = calcTest calcInteractive calcServer
 CC = gcc
-CFLAGS = -g -Wall -Wextra -pedantic -std=gnu11 -ggdb3
+CFLAGS = -g -Wall -Wextra -pedantic -std=gnu11 -ggdb3 -g
 
 CXX = g++
 CXXFLAGS = -D__USE_POSIX -g -Wall -Wextra -pedantic -std=gnu++11
@@ -31,7 +31,7 @@ calcInteractive : calcInteractive.o calc.o csapp.o
 	$(CC) -o $@ calcInteractive.o calc.o csapp.o -lpthread
 
 calcServer : logger.o calcServer.o calc.o csapp.o 
-	$(CC) -o $@ calcServer.o calc.o csapp.o logger.o -lpthread
+	$(CC) -o $@ calcServer.o calc.o csapp.o logger.o -lpthread  -ggdb3
 
 # Targets for .o files with correct dependencies.
 # Note that no commands are needed because of the pattern rules above.
