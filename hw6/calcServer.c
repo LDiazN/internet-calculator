@@ -23,7 +23,7 @@
 #define SERVER_ADDR INADDR_LOOPBACK // Listen to localhost
 // #define SERVER_ADDR INADDR_ANY   // Listen anything
 #define MAX_CONNECTION_QUEUE_SIZE 100
-#define MAX_SIMULT_SESSIONS 2 		// Max amount of simultaneous sessions
+#define MAX_SIMULT_SESSIONS 100 		// Max amount of simultaneous sessions
 
 /// Server persistent data
 struct Server
