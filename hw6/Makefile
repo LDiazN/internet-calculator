@@ -27,8 +27,8 @@ solution.zip :
 calcTest : logger.o calcTest.o calc.o tctest.o 
 	$(CC) -o $@ calcTest.o calc.o tctest.o logger.o
 
-calcInteractive : calcInteractive.o calc.o csapp.o
-	$(CC) -o $@ calcInteractive.o calc.o csapp.o -lpthread
+calcInteractive : logger.o calcInteractive.o calc.o csapp.o 
+	$(CC) -o $@ calcInteractive.o calc.o csapp.o logger.o -lpthread
 
 calcServer : logger.o calcServer.o calc.o csapp.o 
 	$(CC) -o $@ calcServer.o calc.o csapp.o logger.o -lpthread  -ggdb3
